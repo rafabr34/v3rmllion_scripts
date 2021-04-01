@@ -1,0 +1,333 @@
+
+
+
+
+function StartHeli()
+
+local KEY_MAIN_ToggleKeyValue = 118
+local KEY_MAIN_FlipKeyValue = 102
+
+local KEY_HELI_Up = 304
+local KEY_HELI_Down = 306
+
+local KEY_HELI_Forward = 119
+local KEY_HELI_Backward = 115
+local KEY_HELI_Left = 100
+local KEY_HELI_Right = 97
+
+local SPEED_Increase = 0.07
+local SPEED_TailRotationSpeedMultiplier = 2
+local SPEED_ForceMultiplier = 1000
+local SPEED_AuxForceMultiplier = 500
+local SPEED_MaxDumperForce = 5000
+local SPEED_DumperMaxSpeed = 100
+local SPEED_DumperMaxDampening = 0
+local SPEED_MovingAddition = 45
+local SPEED_MovingBPAddition = 5000
+local SPEED_GyroMaxTorque = 1e+15
+
+local CharModel = game:GetService("Players").LocalPlayer.Character
+local CharModelMain = CharModel:FindFirstChild("HumanoidRootPart") or CharModel:FindFirstChildOfClass("Humanoid").RootPart or CharModel:FindFirstChild("Torso") or CharModel.PrimaryPart
+local UIS = game:GetService("UserInputService")
+    if CharModelMain == nil then
+        error("Didnt Find Character MainPart")
+    elseif CharModelMain.Name == "Torso" or CharModelMain.Name == "UpperTorso" then
+        warn("Using " .. CharModelMain.Name .. " As MainPart, It Can Be Glitchy")
+    end
+
+local function GenString(len,UTF8Chars)
+local StringData = ""
+for Attempt=1,len do
+local UTF8Char = utf8.char(math.random(0,UTF8Chars))
+local NormalInt = math.random(0,9)
+StringData = StringData .. tostring(NormalInt) .. tostring(UTF8Char)
+end
+return StringData
+end
+
+
+
+local AllPartsTable = {}
+
+local MOVING_Up = false
+local MOVING_Down = false
+
+local MOVING_Forward = false
+local MOVING_Backward = false
+local MOVING_Left = false
+local MOVING_Right = false
+
+
+
+local Gyro = nil
+local Force = nil
+local AuxForce = nil
+local SpeedDumper = nil
+
+local IsHeli = false
+
+local Folder = Instance.new("Folder",game:GetService("Workspace"));table.insert(AllPartsTable,Folder)
+Folder.Name = GenString(math.random(10,300),math.random(0,1049599))
+
+local function MainRotor()
+    local GyroCore = Instance.new("Part",Folder);table.insert(AllPartsTable,GyroCore)
+    Gyro = Instance.new("BodyGyro",GyroCore);table.insert(AllPartsTable,Gyro)
+    local RotorCore = Instance.new("Part",Folder);table.insert(AllPartsTable,RotorCore)
+    Force = Instance.new("BodyThrust",GyroCore);table.insert(AllPartsTable,Force)
+    AuxForce = Instance.new("BodyForce",GyroCore);table.insert(AllPartsTable,AuxForce)
+    SpeedDumper = Instance.new("BodyPosition",GyroCore);table.insert(AllPartsTable,SpeedDumper)
+    local RotorBladeX = Instance.new("Part",Folder);table.insert(AllPartsTable,RotorBladeX)
+    local RotorBladeZ = Instance.new("Part",Folder);table.insert(AllPartsTable,RotorBladeZ)
+    
+    GyroCore.Size = Vector3.new(1,1,1)
+    GyroCore.Transparency = 1
+    GyroCore.CanCollide = false
+    
+    RotorCore.Size = Vector3.new(0.5,1.5,2)
+    RotorCore.Shape = Enum.PartType.Cylinder
+    RotorCore.Material = Enum.Material.Metal
+    RotorCore.Color = Color3.fromRGB(50,50,50)
+    RotorCore.CanCollide = false
+
+    RotorBladeX.Size = Vector3.new(25,0.2,1)
+    RotorBladeX.Material = Enum.Material.Metal
+    RotorBladeX.Color = Color3.fromRGB(50,50,50)
+    RotorBladeX.CanCollide = false
+    
+    RotorBladeZ.Size = Vector3.new(25,0.2,1)
+    RotorBladeZ.Material = Enum.Material.Metal
+    RotorBladeZ.Color = Color3.fromRGB(50,50,50)
+    RotorBladeZ.CanCollide = false
+
+    local GyroCoreWeld = Instance.new("Weld",Folder);table.insert(AllPartsTable,GyroCore)
+    local RotorCoreWeldX = Instance.new("Weld",Folder);table.insert(AllPartsTable,RotorCoreWeldX)
+    local RotorCoreWeldZ = Instance.new("Weld",Folder);table.insert(AllPartsTable,RotorCoreWeldZ)
+    local RotorToPlayerRootWeld = Instance.new("Weld",Folder);table.insert(AllPartsTable,RotorToPlayerRootWeld)
+
+    RotorCoreWeldX.Part0 = RotorCore
+    RotorCoreWeldX.Part1 = RotorBladeX
+    RotorCoreWeldX.C0 = CFrame.new(0,0,0) * CFrame.Angles(0,0,math.rad(90))
+
+
+    RotorCoreWeldZ.Part0 = RotorCore
+    RotorCoreWeldZ.Part1 = RotorBladeZ
+    RotorCoreWeldZ.C0 = CFrame.new(0,0,0) * CFrame.Angles(math.rad(90),0,math.rad(90))
+
+
+    RotorToPlayerRootWeld.Part0 = RotorCore
+    RotorToPlayerRootWeld.Part1 = CharModelMain
+    RotorToPlayerRootWeld.C0 = CFrame.new(0,0,0) * CFrame.Angles(0,0,math.rad(90))
+    RotorToPlayerRootWeld.C1 = CFrame.new(0,5,0)-- * CFrame.Angles(0,math.rad(5),0)
+    
+    GyroCoreWeld.Part0 = GyroCore
+    GyroCoreWeld.Part1 = CharModelMain
+
+    
+    return RotorToPlayerRootWeld
+end
+
+function TailRotor()
+
+    local RotorCore = Instance.new("Part",Folder);table.insert(AllPartsTable,RotorCore)
+    local RotorBladeX = Instance.new("Part",Folder);table.insert(AllPartsTable,RotorBladeX)
+    local RotorBladeZ = Instance.new("Part",Folder);table.insert(AllPartsTable,RotorBladeZ)
+
+    RotorCore.Size = Vector3.new(0.5,1.5,2)
+    RotorCore.Shape = Enum.PartType.Cylinder
+    RotorCore.Material = Enum.Material.Metal
+    RotorCore.Color = Color3.fromRGB(50,50,50)
+    RotorCore.CanCollide = false
+
+    RotorBladeX.Size = Vector3.new(5,0.2,1)
+    RotorBladeX.Material = Enum.Material.Metal
+    RotorBladeX.Color = Color3.fromRGB(50,50,50)
+    RotorBladeX.CanCollide = false
+
+
+    RotorBladeZ.Size = Vector3.new(5,0.2,1)
+    RotorBladeZ.Material = Enum.Material.Metal
+    RotorBladeZ.Color = Color3.fromRGB(50,50,50)
+    RotorBladeZ.CanCollide = false
+
+    local RotorCoreWeldX = Instance.new("Weld",Folder);table.insert(AllPartsTable,RotorCoreWeldX)
+    local RotorCoreWeldZ = Instance.new("Weld",Folder);table.insert(AllPartsTable,RotorCoreWeldZ)
+    local RotorToPlayerRootWeld = Instance.new("Weld",Folder);table.insert(AllPartsTable,RotorToPlayerRootWeld)
+
+    RotorCoreWeldX.Part0 = RotorCore
+    RotorCoreWeldX.Part1 = RotorBladeX
+    RotorCoreWeldX.C0 = CFrame.new(0,0,0) * CFrame.Angles(0,0,math.rad(90))
+
+
+    RotorCoreWeldZ.Part0 = RotorCore
+    RotorCoreWeldZ.Part1 = RotorBladeZ
+    RotorCoreWeldZ.C0 = CFrame.new(0,0,0) * CFrame.Angles(math.rad(90),0,math.rad(90))
+
+
+    RotorToPlayerRootWeld.Part0 = RotorCore
+    RotorToPlayerRootWeld.Part1 = CharModelMain
+    RotorToPlayerRootWeld.C0 = CFrame.new(0,0,0) * CFrame.Angles(0,0,math.rad(0))
+    RotorToPlayerRootWeld.C1 = CFrame.new(0,0,25)-- * CFrame.Angles(math.rad(45),0,0)
+
+    return RotorToPlayerRootWeld
+
+end
+
+function DestroyAll()
+    for _,i in ipairs(AllPartsTable) do
+    pcall(function()
+    i:Destroy()
+    end)
+    end
+    AllPartsTable = {}
+end
+
+-- Main Scripting
+
+local MainKeyActivationEvent = nil
+local MainKeyDeactivationEvent = nil
+local MainUpdatingEvent = nil
+local TailRotorWeld = nil
+local RotorWeld = nil
+local RotorSpeed = 0
+local TailRotorSpeed = 0
+
+MainKeyActivationEvent = UIS.InputBegan:Connect(function(Input)
+-- Toggle
+    if Input.KeyCode.Value == KEY_MAIN_ToggleKeyValue then
+    print(RotorWeld,TailRotorWeld)
+    if IsHeli == true then
+    IsHeli = false
+    DestroyAll()
+    elseif IsHeli == false then
+    IsHeli = true
+    CharModel = game:GetService("Players").LocalPlayer.Character
+    CharModelMain = CharModel:FindFirstChild("HumanoidRootPart") or CharModel:FindFirstChildOfClass("Humanoid").RootPart or CharModel:FindFirstChild("Torso") or CharModel.PrimaryPart
+    Folder = Instance.new("Folder",game:GetService("Workspace"));table.insert(AllPartsTable,Folder)
+    Folder.Name = GenString(math.random(10,300),math.random(0,1049599))
+    RotorWeld = MainRotor()
+    TailRotorWeld = TailRotor()
+    end
+    end
+-- UP
+if Input.KeyCode.Value == KEY_HELI_Up then
+MOVING_Up = true
+end
+if Input.KeyCode.Value == KEY_HELI_Down then
+MOVING_Down = true
+end
+
+if Input.KeyCode.Value == KEY_HELI_Forward then
+MOVING_Forward = true
+end
+if Input.KeyCode.Value == KEY_HELI_Backward then
+MOVING_Backward = true
+end
+
+if Input.KeyCode.Value == KEY_HELI_Right then
+MOVING_Right = true
+end
+if Input.KeyCode.Value == KEY_HELI_Left then
+MOVING_Left = true
+end
+
+end)
+
+MainKeyDeactivationEvent = UIS.InputEnded:Connect(function(Input)
+
+if Input.KeyCode.Value == KEY_HELI_Up then
+MOVING_Up = false
+end
+if Input.KeyCode.Value == KEY_HELI_Down then
+MOVING_Down = false
+end
+
+if Input.KeyCode.Value == KEY_HELI_Forward then
+MOVING_Forward = false
+end
+if Input.KeyCode.Value == KEY_HELI_Backward then
+MOVING_Backward = false
+end
+
+if Input.KeyCode.Value == KEY_HELI_Right then
+MOVING_Right = false
+end
+if Input.KeyCode.Value == KEY_HELI_Left then
+MOVING_Left = false
+end
+
+end)
+
+MainUpdatingEvent = game:GetService("RunService").RenderStepped:Connect(function()
+local GyroCF = game:GetService("Workspace").CurrentCamera.CFrame
+local BPXAdd = 0
+local BPZAdd = 0
+if MOVING_Forward == true then
+GyroCF = GyroCF * CFrame.Angles(math.rad(SPEED_MovingAddition*-1),0,0)
+BPXAdd = BPXAdd + SPEED_MovingBPAddition*-1
+end
+if MOVING_Backward == true then
+GyroCF = GyroCF * CFrame.Angles(math.rad(SPEED_MovingAddition*1),0,0)
+BPXAdd = BPXAdd + SPEED_MovingBPAddition*1
+end
+if MOVING_Right == true then
+GyroCF = GyroCF * CFrame.Angles(0,0,math.rad(SPEED_MovingAddition*1))
+BPZAdd = BPZAdd + SPEED_MovingBPAddition*-1
+end
+if MOVING_Left == true then
+GyroCF = GyroCF * CFrame.Angles(0,0,math.rad(SPEED_MovingAddition*-1))
+BPZAdd = BPZAdd + SPEED_MovingBPAddition*1
+end
+--SPEED_MovingAddition
+if IsHeli == true then
+Gyro.CFrame = GyroCF--:Inverse()
+Gyro.MaxTorque = Vector3.new(SPEED_GyroMaxTorque,SPEED_GyroMaxTorque,SPEED_GyroMaxTorque)
+CharModel:FindFirstChildOfClass("Humanoid").PlatformStand = true
+elseif IsHeli == false then
+CharModel:FindFirstChildOfClass("Humanoid").PlatformStand = false
+end
+if MOVING_Up == true and IsHeli == true then
+RotorSpeed = RotorSpeed + SPEED_Increase
+end
+if MOVING_Down == true and IsHeli == true then
+RotorSpeed = RotorSpeed - SPEED_Increase
+end
+pcall(function()
+RotorWeld.C1 = RotorWeld.C1 * CFrame.Angles(0,math.rad(RotorSpeed),0)
+TailRotorWeld.C1 = TailRotorWeld.C1 * CFrame.Angles(math.rad(RotorSpeed * SPEED_TailRotationSpeedMultiplier),0,0)
+Force.Force = Vector3.new(BPZAdd,(RotorSpeed * SPEED_ForceMultiplier)*1,BPXAdd)
+AuxForce.Force = Vector3.new(0,(RotorSpeed * SPEED_AuxForceMultiplier)*1,0)
+SpeedDumper.Position = CharModelMain.Position
+SpeedDumper.MaxForce = Vector3.new(SPEED_MaxDumperForce,SPEED_MaxDumperForce,SPEED_MaxDumperForce)
+SpeedDumper.P = SPEED_DumperMaxSpeed
+SpeedDumper.D = SPEED_DumperMaxDampening
+Force.Location = Vector3.new(0,0,0)
+end)
+--print(Force.Force)
+end)
+
+return(
+function()
+pcall(function()
+MainUpdatingEvent:Disconnect()
+end)
+pcall(function()
+MainKeyDeactivationEvent:Disconnect()
+end)
+pcall(function()
+MainKeyActivationEvent:Disconnect()
+end)
+pcall(function()
+DestroyAll()
+end)
+pcall(function()
+CharModel:FindFirstChildOfClass("Humanoid").PlatformStand = false
+end)
+end
+)
+
+end
+
+
+
+getfenv()._G.Kill = StartHeli()
+--StartHeli()
